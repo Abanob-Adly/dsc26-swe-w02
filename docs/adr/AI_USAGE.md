@@ -1,14 +1,11 @@
 ## Tools
-
 - GitHub Copilot / ChatGPT / Gemini
 
 ## What AI got wrong
-
 - Initially attempted to import Pydantic models directly into `app/domain.py`, violating the requirement for a pure Python domain layer.
 - Generated standard offset-based pagination that failed when items changed state mid-walk during filter tests.
 
 ## In my own words
-
 Why does listParcels need a cursor rather than an offset?
 Offset pagination causes items to be skipped or duplicated if earlier parcels change state or new parcels are created between paginated requests. A cursor anchors the pagination position to a specific parcel, ensuring a stable and idempotent traversal regardless of concurrent state changes.
 
