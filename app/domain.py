@@ -1,9 +1,4 @@
-"""Parcel lifecycle rules for Tawseel.
-
-Pure Python: do not import fastapi, starlette, pydantic or sqlalchemy here
-(a hidden test checks). Keep the names below exactly as they are.
-"""
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 
 MAX_ATTEMPTS = 3
@@ -38,14 +33,37 @@ class Parcel:
 
 
 def apply_event(parcel: Parcel, event: EventType) -> Parcel:
-    """Return a new Parcel. Raise InvalidTransition if the event is not allowed.
+    """Return a new Parcel. Raise InvalidTransition if the event is not allowed."""
+    current_state = parcel.state
 
-    - created + dispatch -> out_for_delivery, attempts + 1
-    - out_for_delivery + deliver -> delivered
-    - out_for_delivery + fail -> failed_attempt
-    - failed_attempt + dispatch -> out_for_delivery, attempts + 1, only if attempts < MAX_ATTEMPTS
-    - failed_attempt + return -> returned
-    - delivered and returned are final; every other combination raises InvalidTransition.
-    Never mutate the input parcel.
-    """
-    raise NotImplementedError
+    if current_state == ParcelState.CREATED and event == EventType.DISPATCH:
+        return replace(
+            parcel,
+            state=ParcelState.OUT_FOR_DELIVERY,
+            attempts=parcel.attempts + 1,
+        )
+
+    if current_state == ParcelState.OUT_FOR_DELIVERY and event == EventType.DELIVER:
+        return replace(parcel, state=ParcelState.DELIVERED)
+
+    if current_state == ParcelState.OUT_FOR_DELIVERY and event == EventType.FAIL:
+        return replace(parcel, state=ParcelState.FAILED_ATTEMPT)
+
+    if current_state == ParcelState.FAILED_ATTEMPT:
+        if event == EventType.DISPATCH:
+            if parcel.attempts >= MAX_ATTEMPTS:
+                raise InvalidTransition(
+                    f"Cannot dispatch after {MAX_ATTEMPTS} failed attempts"
+                )
+            return replace(
+                parcel,
+                state=ParcelState.OUT_FOR_DELIVERY,
+                attempts=parcel.attempts + 1,
+            )
+        if event == EventType.RETURN:
+            return replace(parcel, state=ParcelState.RETURNED)
+
+    # Any other transition is invalid
+    raise InvalidTransition(
+        f"Invalid transition from state '{current_state}' with event '{event}'"
+    )
